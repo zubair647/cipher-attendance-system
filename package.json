@@ -1,0 +1,20 @@
+{
+  "name": "cipher-attendance-system",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/shared",
+    "mentor-app",
+    "admin-app"
+  ],
+  "scripts": {
+    "setup": "npm install",
+    "seed": "node packages/shared/seed.js",
+    "dev": "npm run seed && concurrently -n MENTOR,ADMIN -c cyan,magenta \"npm run dev --workspace=mentor-app\" \"npm run dev --workspace=admin-app\"",
+    "dev:mentor": "npm run dev --workspace=mentor-app",
+    "dev:admin": "npm run dev --workspace=admin-app"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

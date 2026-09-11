@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# The "database" — regenerated automatically by `npm run dev` / `npm run seed`.
+# Excluded so a fresh clone always starts from clean demo data, not whatever
+# was clicked around in during development.
+shared-data/db.json
+
+# Env files (none currently used, but never commit these if added later)
+.env
+.env.local
+.env*.local
+
+# OS / editor
+.DS_Store
+*.log
+npm-debug.log*
