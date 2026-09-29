@@ -2,12 +2,20 @@ import { cookies } from 'next/headers';
 
 const COOKIE = 'cipher_mentor_session';
 
-export function getSessionMentorId() {
-  return cookies().get(COOKIE)?.value || null;
+/** Returns the logged-in mentor object { mentor_id, name, email, university } or null. */
+export function getSession() {
+  const raw = cookies().get(COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
 }
 
-export function setSessionCookie(mentorId) {
-  cookies().set(COOKIE, mentorId, {
+export function setSessionCookie(mentor) {
+  const value = Buffer.from(JSON.stringify(mentor)).toString('base64');
+  cookies().set(COOKIE, value, {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',

@@ -1,9 +1,9 @@
-import { getSessionMentorId } from '../../lib/session';
-import { getMentorHomeData } from '../../lib/mentorData';
+import { getSession } from '../../lib/session';
 import CameraCapture from '../../components/CameraCapture';
 
+export const dynamic = 'force-dynamic';
+
 export default function CheckOutPage() {
-  const mentorId = getSessionMentorId();
-  const data = getMentorHomeData(mentorId);
-  return <CameraCapture mode="checkout" universityCode={data?.university?.code} />;
+  const session = getSession();
+  return <CameraCapture mode="checkout" universityCode={session?.university} />;
 }
