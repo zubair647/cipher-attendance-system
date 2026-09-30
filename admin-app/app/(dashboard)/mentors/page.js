@@ -2,13 +2,15 @@ import Topbar from '../../../components/Topbar';
 import { getMentorsList } from '../../../lib/adminData';
 import MentorsClient from '../../../components/MentorsClient';
 
-export default function MentorsPage({ searchParams }) {
+export const dynamic = 'force-dynamic';
+
+export default async function MentorsPage({ searchParams }) {
   const q = searchParams?.q || '';
   const universityId = searchParams?.university || '';
-  const { mentors, universities, total } = getMentorsList({ query: q, universityId });
+  const { mentors, universities, total } = await getMentorsList({ query: q, universityId });
   const countsByUni = universities.map((u) => ({
     ...u,
-    count: mentors.filter((m) => m.universityId === u.id).length,
+    count: mentors.filter((m) => String(m.university) === u.id).length,
   }));
 
   return (

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Check, Circle, Square } from 'lucide-react';
 import Logo from './Logo';
 import LeaveSheet from './LeaveSheet';
+import PwaManager from './PwaManager';
 
 const STATUS_DOT = {
   none: '#B9BDC6',
@@ -51,6 +52,8 @@ export default function HomeClient({ data, banner }) {
 
       <main className="flex-1 px-5 pb-8">
         <p className="text-[17px] font-semibold text-text-primary mt-1 mb-3">{data.greeting} 👋</p>
+
+        <PwaManager />
 
         {banner && <SuccessBanner banner={banner} data={data} />}
 

@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Camera } from 'lucide-react';
 import Card from './Card';
 import Pill from './Pill';
 import CorrectionModal from './CorrectionModal';
@@ -90,11 +91,11 @@ export default function AttendanceClient({ data, filters, onlyFlaggedInitial }) 
                 <div className="text-[15px] font-semibold">{shortDate(r.date)}</div>
                 <div className="text-[12px] text-text-tertiary">{r.mentorName}</div>
               </div>
-              <Thumb photo={r.checkInPhoto} time={r.checkInAtFmt} leave={r.status === 'leave'} onClick={() => r.checkInPhoto && setPhoto({ photo: r.checkInPhoto, label: `Check-in photo · ${shortDate(r.date)}, ${r.checkInAtFmt}`, mentorName: r.mentorName })} />
+              <Thumb photoId={r.checkInPhotoId} time={r.checkInAtFmt} leave={r.status === 'leave'} onClick={() => r.checkInPhotoId && setPhoto({ photoId: r.checkInPhotoId, label: `Check-in photo · ${shortDate(r.date)}, ${r.checkInAtFmt}`, mentorName: r.mentorName })} />
               <Thumb
-                photo={r.checkOutPhoto} time={r.status === 'flagged' ? '—' : r.status === 'in_progress' ? 'in progress' : r.checkOutAtFmt}
+                photoId={r.checkOutPhotoId} time={r.status === 'flagged' ? '—' : r.status === 'in_progress' ? 'in progress' : r.checkOutAtFmt}
                 leave={r.status === 'leave'} missing={r.status === 'flagged'}
-                onClick={() => r.checkOutPhoto && setPhoto({ photo: r.checkOutPhoto, label: `Check-out photo · ${shortDate(r.date)}, ${r.checkOutAtFmt}`, mentorName: r.mentorName })}
+                onClick={() => r.checkOutPhotoId && setPhoto({ photoId: r.checkOutPhotoId, label: `Check-out photo · ${shortDate(r.date)}, ${r.checkOutAtFmt}`, mentorName: r.mentorName })}
               />
               <span className="text-[15px] font-semibold">{r.status === 'present' ? r.hours : '—'}</span>
               <StatusPill row={r} />
@@ -125,15 +126,16 @@ function Stat({ label, value, flagged }) {
   );
 }
 
-function Thumb({ photo, time, leave, missing, onClick }) {
+function Thumb({ photoId, time, leave, missing, onClick }) {
   if (leave) return <span className="text-[14px] text-text-tertiary">—</span>;
   return (
-    <button onClick={onClick} disabled={!photo} className="flex items-center gap-2.5 text-left disabled:cursor-default">
-      {photo ? (
-        <img src={photo} alt="" className="w-[34px] h-[34px] rounded-[9px] object-cover border border-border" />
-      ) : (
-        <span className="w-[34px] h-[34px] rounded-[9px] bg-canvas border border-border" />
-      )}
+    <button onClick={onClick} disabled={!photoId} className="flex items-center gap-2.5 text-left disabled:cursor-default">
+      <span
+        className={`w-[34px] h-[34px] rounded-[9px] border flex items-center justify-center shrink-0 ${photoId ? 'bg-canvas border-border text-text-tertiary' : 'bg-canvas border-border'}`}
+        title={photoId ? 'View photo' : 'No photo'}
+      >
+        {photoId ? <Camera size={15} /> : null}
+      </span>
       <span className={`text-[15px] ${missing ? 'text-flagged-fg font-semibold' : ''}`}>{time || '—'}</span>
     </button>
   );

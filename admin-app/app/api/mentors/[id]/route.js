@@ -1,25 +1,26 @@
 import { NextResponse } from 'next/server';
-import { readDb, writeDb } from '@cipher/shared';
-import { getSessionAdminId } from '../../../../lib/session';
+import { callBackend } from '@cipher/shared';
+import { getAdmin } from '../../../../lib/session';
 
+// Reset a mentor's password.
 export async function PATCH(req, { params }) {
-  if (!getSessionAdminId()) return NextResponse.json({ error: 'Not logged in.' }, { status: 401 });
-
+  if (!getAdmin()) return NextResponse.json({ error: 'Not logged in.' }, { status: 401 });
   const body = await req.json();
-  const db = readDb();
-  const mentor = db.mentors.find((m) => m.id === params.id);
-  if (!mentor) return NextResponse.json({ error: 'Mentor not found.' }, { status: 404 });
-
-  if (typeof body.active === 'boolean') mentor.active = body.active;
   if (typeof body.newPassword === 'string') {
     if (body.newPassword.length < 8) {
       return NextResponse.json({ error: 'New password must be at least 8 characters.' }, { status: 400 });
     }
-    mentor.password = body.newPassword;
-    mentor.passwordResetAt = new Date().toISOString();
+    const r = await callBackend('updateMentorPassword', { mentor_id: params.id, new_password: body.newPassword });
+    if (r.error) return NextResponse.json({ error: r.error }, { status: 400 });
+    return NextResponse.json({ ok: true });
   }
-  if (typeof body.universityId === 'string') mentor.universityId = body.universityId;
+  return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
+}
 
-  writeDb(db);
-  return NextResponse.json({ ok: true, mentor });
+// Remove a mentor (hard delete — the backend has no deactivate).
+export async function DELETE(req, { params }) {
+  if (!getAdmin()) return NextResponse.json({ error: 'Not logged in.' }, { status: 401 });
+  const r = await callBackend('deleteMentor', { mentor_id: params.id });
+  if (r.error) return NextResponse.json({ error: r.error }, { status: 400 });
+  return NextResponse.json({ ok: true });
 }

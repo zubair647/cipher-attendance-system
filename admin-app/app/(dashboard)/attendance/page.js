@@ -2,14 +2,16 @@ import Topbar from '../../../components/Topbar';
 import { getAttendanceLog } from '../../../lib/adminData';
 import AttendanceClient from '../../../components/AttendanceClient';
 
-export default function AttendancePage({ searchParams }) {
+export const dynamic = 'force-dynamic';
+
+export default async function AttendancePage({ searchParams }) {
   const mentorId = searchParams?.mentor || '';
   const universityId = searchParams?.university || '';
   const from = searchParams?.from || '';
   const to = searchParams?.to || '';
   const onlyFlagged = searchParams?.flagged === '1';
 
-  const data = getAttendanceLog({ mentorId, universityId, from, to });
+  const data = await getAttendanceLog({ mentorId, universityId, from, to });
   const mentorName = mentorId ? data.mentors.find((m) => m.id === mentorId)?.name : 'All mentors';
 
   return (

@@ -1,12 +1,11 @@
-import { readDb } from '@cipher/shared';
 import Topbar from '../../../components/Topbar';
 import TimetablesClient from '../../../components/TimetablesClient';
 import { getTimetableData } from '../../../lib/adminData';
 
-export default function TimetablesPage({ searchParams }) {
-  const db = readDb();
-  const mentorId = searchParams?.mentor || db.mentors[0]?.id;
-  const data = mentorId ? getTimetableData(mentorId) : null;
+export const dynamic = 'force-dynamic';
+
+export default async function TimetablesPage({ searchParams }) {
+  const data = await getTimetableData(searchParams?.mentor || null);
 
   if (!data) {
     return (
@@ -23,7 +22,7 @@ export default function TimetablesPage({ searchParams }) {
     <>
       <Topbar title={`Timetable · ${data.mentor.name}`} context={`${data.mentor.universityName} · ${data.active ? `active since ${data.active.effectiveFrom}` : 'no timetable set yet'}`} />
       <div className="flex-1 overflow-y-auto px-8 py-7">
-        <TimetablesClient data={data} selectedMentorId={mentorId} />
+        <TimetablesClient data={data} selectedMentorId={data.mentor.id} />
       </div>
     </>
   );

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, Plus } from 'lucide-react';
 import Card from './Card';
-import Toggle from './Toggle';
 import AddMentorModal from './AddMentorModal';
 import ResetPasswordModal from './ResetPasswordModal';
 
@@ -16,6 +15,7 @@ export default function MentorsClient({ mentors, universities, initialQuery, ini
   const [uni, setUni] = useState(initialUniversity);
   const [addOpen, setAddOpen] = useState(false);
   const [resetFor, setResetFor] = useState(null);
+  const [removing, setRemoving] = useState(null);
   const [page, setPage] = useState(0);
 
   function applyFilters(nextQ, nextUni) {
@@ -25,17 +25,16 @@ export default function MentorsClient({ mentors, universities, initialQuery, ini
     router.push(`/mentors${params.toString() ? `?${params}` : ''}`);
   }
 
-  async function toggleActive(mentor, next) {
-    await fetch(`/api/mentors/${mentor.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: next }),
-    });
+  async function removeMentor(mentor) {
+    setRemoving(mentor.id);
+    await fetch(`/api/mentors/${mentor.id}`, { method: 'DELETE' });
+    setRemoving(null);
     router.refresh();
   }
 
   const pageStart = page * PAGE_SIZE;
   const pageRows = mentors.slice(pageStart, pageStart + PAGE_SIZE);
+  const grid = '1.4fr 1.8fr .7fr 1.7fr';
 
   return (
     <div>
@@ -70,14 +69,14 @@ export default function MentorsClient({ mentors, universities, initialQuery, ini
       </div>
 
       <Card padding="p-0">
-        <div className="grid px-6 py-4 border-b border-border text-[13px] text-text-secondary font-medium" style={{ gridTemplateColumns: '1.4fr 1.6fr .8fr 1fr 1.5fr', gap: 16 }}>
-          <span>Name</span><span>Email</span><span>University</span><span>Status</span><span className="text-right">Actions</span>
+        <div className="grid px-6 py-4 border-b border-border text-[13px] text-text-secondary font-medium" style={{ gridTemplateColumns: grid, gap: 16 }}>
+          <span>Name</span><span>Email</span><span>University</span><span className="text-right">Actions</span>
         </div>
         {pageRows.length === 0 && (
           <div className="px-6 py-10 text-center text-[15px] text-text-secondary">No mentors match these filters.</div>
         )}
         {pageRows.map((m) => (
-          <div key={m.id} className="grid px-6 py-4.5 border-b border-border-soft items-center hover:bg-[#FAFBFC]" style={{ gridTemplateColumns: '1.4fr 1.6fr .8fr 1fr 1.5fr', gap: 16, paddingTop: 18, paddingBottom: 18 }}>
+          <div key={m.id} className="grid px-6 border-b border-border-soft items-center hover:bg-[#FAFBFC]" style={{ gridTemplateColumns: grid, gap: 16, paddingTop: 18, paddingBottom: 18 }}>
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-9 h-9 rounded-full bg-[#22252A] text-white text-[12px] font-semibold flex items-center justify-center shrink-0">
                 {m.name.split(' ').map((s) => s[0]).slice(0, 2).join('').toUpperCase()}
@@ -86,13 +85,16 @@ export default function MentorsClient({ mentors, universities, initialQuery, ini
             </div>
             <span className="text-[14px] text-text-secondary truncate">{m.email}</span>
             <span className="inline-flex w-fit px-2.5 py-1 rounded-lg bg-canvas border border-border text-[13px] font-semibold">{m.universityCode}</span>
-            <div className="flex items-center gap-2.5">
-              <Toggle checked={m.active} onChange={(v) => toggleActive(m, v)} />
-              <span className="text-[13px] text-text-secondary">{m.active ? 'Active' : 'Inactive'}</span>
-            </div>
             <div className="flex items-center justify-end gap-4">
               <button onClick={() => setResetFor(m)} className="text-[13px] font-semibold text-accent-ink">Reset password</button>
               <Link href={`/timetables?mentor=${m.id}`} className="text-[13px] font-semibold text-text-body-alt">Timetable</Link>
+              <button
+                onClick={() => removeMentor(m)}
+                disabled={removing === m.id}
+                className="text-[13px] font-semibold text-flagged-fg disabled:opacity-50"
+              >
+                {removing === m.id ? 'Removing…' : 'Remove'}
+              </button>
             </div>
           </div>
         ))}

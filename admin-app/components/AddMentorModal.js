@@ -28,7 +28,7 @@ export default function AddMentorModal({ universities, onClose }) {
     const res = await fetch('/api/mentors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, universityId, password }),
+      body: JSON.stringify({ name, email, university: universityId, password }),
     });
     const data = await res.json();
     if (!res.ok) {

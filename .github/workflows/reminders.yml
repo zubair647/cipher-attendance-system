@@ -1,0 +1,61 @@
+name: Attendance reminders
+
+# Fires the mentor push reminders on a schedule. GitHub Actions cron runs in
+# UTC, so IST times are converted (IST = UTC + 5:30):
+#   09:00 IST = 03:30 UTC   (checkin_0900)
+#   10:00 IST = 04:30 UTC   (checkin_1000)
+#   11:00 IST = 05:30 UTC   (checkin_1100)
+#   16:00 IST = 10:30 UTC   (checkout_1600)
+#   16:45 IST = 11:15 UTC   (checkout_1645)
+#   17:00 IST = 11:30 UTC   (checkout_1700)
+#
+# Note: GitHub's scheduler can be delayed by several minutes under load, and it
+# pauses after ~60 days of no repo activity — acceptable for reminders.
+#
+# Requires two repository secrets (Settings ▸ Secrets and variables ▸ Actions):
+#   MENTOR_APP_URL  → your deployed mentor app base URL (e.g. https://cipher-mentor.vercel.app)
+#   CRON_SECRET     → the same value set in the mentor app's environment
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+    - cron: '30 4 * * *'
+    - cron: '30 5 * * *'
+    - cron: '30 10 * * *'
+    - cron: '15 11 * * *'
+    - cron: '30 11 * * *'
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: 'Slot id to fire manually (e.g. checkin_0900)'
+        required: true
+        default: 'checkin_0900'
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine slot
+        id: slot
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SLOT="${{ github.event.inputs.slot }}"
+          else
+            case "${{ github.event.schedule }}" in
+              "30 3 * * *")  SLOT="checkin_0900" ;;
+              "30 4 * * *")  SLOT="checkin_1000" ;;
+              "30 5 * * *")  SLOT="checkin_1100" ;;
+              "30 10 * * *") SLOT="checkout_1600" ;;
+              "15 11 * * *") SLOT="checkout_1645" ;;
+              "30 11 * * *") SLOT="checkout_1700" ;;
+              *) SLOT="" ;;
+            esac
+          fi
+          echo "slot=$SLOT" >> "$GITHUB_OUTPUT"
+
+      - name: Fire reminder
+        run: |
+          if [ -z "${{ steps.slot.outputs.slot }}" ]; then echo "No slot matched; skipping."; exit 0; fi
+          echo "Firing slot: ${{ steps.slot.outputs.slot }}"
+          curl -s -S -L -m 60 \
+            "${{ secrets.MENTOR_APP_URL }}/api/cron/reminders?slot=${{ steps.slot.outputs.slot }}&secret=${{ secrets.CRON_SECRET }}"

@@ -6,8 +6,10 @@ import Sparkline from '../../components/Sparkline';
 import OverviewChart from '../../components/OverviewChart';
 import { getOverviewData } from '../../lib/adminData';
 
-export default function OverviewPage() {
-  const data = getOverviewData();
+export const dynamic = 'force-dynamic';
+
+export default async function OverviewPage() {
+  const data = await getOverviewData();
   const chartHours = data.chart.map((d) => d.hours);
 
   return (

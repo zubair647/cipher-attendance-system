@@ -2,12 +2,20 @@ import { cookies } from 'next/headers';
 
 const COOKIE = 'cipher_admin_session';
 
-export function getSessionAdminId() {
-  return cookies().get(COOKIE)?.value || null;
+/** Returns the logged-in admin { email, name } or null. */
+export function getAdmin() {
+  const raw = cookies().get(COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
 }
 
-export function setSessionCookie(adminId) {
-  cookies().set(COOKIE, adminId, {
+export function setAdminCookie(admin) {
+  const value = Buffer.from(JSON.stringify(admin)).toString('base64');
+  cookies().set(COOKIE, value, {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
@@ -15,6 +23,8 @@ export function setSessionCookie(adminId) {
   });
 }
 
-export function clearSessionCookie() {
+export function clearAdminCookie() {
   cookies().set(COOKIE, '', { path: '/', maxAge: 0 });
 }
+
+export { COOKIE };

@@ -1,24 +1,17 @@
 import { NextResponse } from 'next/server';
-import { readDb, writeDb, newId, todayStr } from '@cipher/shared';
-import { getSessionAdminId } from '../../../lib/session';
+import { callBackend } from '@cipher/shared';
+import { getAdmin } from '../../../lib/session';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri'];
 
-function addDays(dateStr, delta) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + delta);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+function istToday() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 }
 
 export async function POST(req) {
-  if (!getSessionAdminId()) return NextResponse.json({ error: 'Not logged in.' }, { status: 401 });
-
+  if (!getAdmin()) return NextResponse.json({ error: 'Not logged in.' }, { status: 401 });
   const body = await req.json();
   const { mentorId, effectiveFrom, attachmentName } = body;
-  const db = readDb();
-  const mentor = db.mentors.find((m) => m.id === mentorId);
-  if (!mentor) return NextResponse.json({ error: 'Mentor not found.' }, { status: 404 });
 
   const counts = {};
   for (const d of DAYS) {
@@ -31,34 +24,23 @@ export async function POST(req) {
   if (!effectiveFrom || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)) {
     return NextResponse.json({ error: 'Choose a valid effective-from date.' }, { status: 400 });
   }
-  const today = todayStr();
-  if (effectiveFrom < today) {
+  if (effectiveFrom < istToday()) {
     return NextResponse.json({ error: 'Effective-from must be today or later.' }, { status: 400 });
   }
-
-  const versions = db.timetables
-    .filter((t) => t.mentorId === mentorId)
-    .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1));
-  const current = versions[0];
-  if (current && effectiveFrom <= current.effectiveFrom) {
-    return NextResponse.json({ error: 'Effective-from must be after the current version\'s start date.' }, { status: 400 });
+  // Ensure it's after the current version's start.
+  const existing = await callBackend('getTimetable', { mentor_id: mentorId });
+  const versions = (existing.versions || []).slice().sort((a, b) => (a.effective_from < b.effective_from ? 1 : -1));
+  if (versions[0] && effectiveFrom <= versions[0].effective_from) {
+    return NextResponse.json({ error: "Effective-from must be after the current version's start date." }, { status: 400 });
   }
 
-  if (current) {
-    current.effectiveTo = addDays(effectiveFrom, -1);
-  }
-
-  const version = {
-    id: newId('tt'),
-    mentorId,
-    ...counts,
-    minutesPerClass: 50,
-    effectiveFrom,
-    effectiveTo: null,
-    attachmentName: attachmentName || null,
-    createdAt: new Date().toISOString(),
-  };
-  db.timetables.push(version);
-  writeDb(db);
-  return NextResponse.json({ ok: true, version });
+  const r = await callBackend('updateTimetable', {
+    mentor_id: mentorId,
+    effective_from: effectiveFrom,
+    mon_classes: counts.mon, tue_classes: counts.tue, wed_classes: counts.wed, thu_classes: counts.thu, fri_classes: counts.fri,
+    minutes_per_class: 50,
+    reference_file_id: attachmentName || '',
+  });
+  if (r.error) return NextResponse.json({ error: r.error }, { status: 400 });
+  return NextResponse.json({ ok: true });
 }

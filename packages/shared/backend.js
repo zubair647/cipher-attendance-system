@@ -21,7 +21,14 @@ function backendUrl() {
 async function callBackend(action, payload) {
   const body = JSON.stringify(Object.assign({ action }, payload || {}));
   let lastErr = 'unknown error';
-  for (let attempt = 0; attempt < 4; attempt++) {
+  // Apps Script's POST→302→googleusercontent redirect intermittently returns a
+  // transient Google HTML error page instead of the JSON, especially on a cold
+  // start. Retry generously; once warm it succeeds on the first try.
+  // More attempts + capped backoff so a slow Apps Script cold start (which can
+  // take 15–25s, returning transient error pages until warm) succeeds instead
+  // of falling through to an empty/errored result.
+  const MAX_ATTEMPTS = 9;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const res = await fetch(backendUrl(), {
         method: 'POST',
@@ -35,11 +42,13 @@ async function callBackend(action, payload) {
       if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         return JSON.parse(trimmed);
       }
-      lastErr = 'Non-JSON response from backend (transient Google redirect).';
+      lastErr = `Transient non-JSON response (HTTP ${res.status}) from backend redirect.`;
     } catch (e) {
       lastErr = String((e && e.message) || e);
     }
-    await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    if (attempt < MAX_ATTEMPTS - 1) {
+      await new Promise((r) => setTimeout(r, Math.min(500 * (attempt + 1), 2500))); // 0.5→2.5s cap, ~16s total
+    }
   }
   return { error: 'Could not reach the backend. ' + lastErr };
 }

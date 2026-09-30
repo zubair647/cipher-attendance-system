@@ -1,12 +1,10 @@
-import { readDb } from '@cipher/shared';
-import { getSessionAdminId } from '../../lib/session';
+import { getAdmin } from '../../lib/session';
 import Sidebar from '../../components/Sidebar';
 
-export default function DashboardLayout({ children }) {
-  const adminId = getSessionAdminId();
-  const db = readDb();
-  const admin = db.admins.find((a) => a.id === adminId) || null;
+export const dynamic = 'force-dynamic';
 
+export default function DashboardLayout({ children }) {
+  const admin = getAdmin();
   return (
     <div className="flex h-screen min-w-[1280px] overflow-hidden">
       <Sidebar admin={admin} />

@@ -1,19 +1,18 @@
 import { NextResponse } from 'next/server';
-import { readDb } from '@cipher/shared';
-import { setSessionCookie } from '../../../lib/session';
+import { setAdminCookie } from '../../../lib/session';
 
+// The backend has no admin accounts, so the dashboard's admin sign-in is
+// validated here against the configured ADMIN_EMAIL / ADMIN_PASSWORD.
 export async function POST(req) {
   const { email, password } = await req.json();
   if (!email || !password) {
     return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });
   }
-  const db = readDb();
-  const admin = db.admins.find(
-    (a) => a.email.toLowerCase() === String(email).toLowerCase() && a.password === password
-  );
-  if (!admin) {
+  const okEmail = (process.env.ADMIN_EMAIL || 'admin@cipherschools.com').toLowerCase();
+  const okPass = process.env.ADMIN_PASSWORD || 'admin123';
+  if (email.toLowerCase() !== okEmail || password !== okPass) {
     return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
   }
-  setSessionCookie(admin.id);
+  setAdminCookie({ email: okEmail, name: 'Ops Admin' });
   return NextResponse.json({ ok: true });
 }

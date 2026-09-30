@@ -71,8 +71,8 @@ export default function CorrectionModal({ row, onClose }) {
 
         <div className="flex items-center justify-between mt-6">
           <div className="text-[14px] text-text-secondary">
-            Computed hours <span className="font-bold text-text-primary">{row.scheduledHours}</span>
-            <span className="text-[12px] text-text-tertiary block">from {row.mentorName?.split(' ')[0]}&apos;s timetable for this day</span>
+            Computed hours <span className="font-bold text-text-primary">{row.hours != null ? row.hours : '—'}</span>
+            <span className="text-[12px] text-text-tertiary block">recalculated from the timetable when you save</span>
           </div>
           <div className="flex gap-3">
             <button onClick={onClose} className="h-11 px-4 rounded-xl border border-border text-[14px] font-medium">Cancel</button>

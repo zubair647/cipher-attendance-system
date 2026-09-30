@@ -1,16 +1,13 @@
-import { getOverviewData } from '../../lib/adminData';
 import LoginForm from '../../components/LoginForm';
-import Sparkline from '../../components/Sparkline';
 import Logo from '../../components/Logo';
 
 export default function AdminLoginPage() {
-  const overview = getOverviewData();
   return (
     <div className="min-h-screen flex">
       <div className="flex-1 flex items-center justify-center px-8">
         <div className="w-full max-w-[420px]">
           <div className="flex items-center gap-2.5 mb-8">
-            <Logo size={30} borderWidth={3} />
+            <Logo size={30} />
             <span className="text-[16px] font-semibold">CipherSchools</span>
           </div>
           <div className="text-[32px] font-bold tracking-[-0.015em] mb-1.5">Admin sign in</div>
@@ -26,17 +23,13 @@ export default function AdminLoginPage() {
       </div>
 
       <div className="w-[560px] shrink-0 bg-surface border-l border-border p-16 hidden lg:flex flex-col justify-center">
-        <div className="text-[14px] text-text-secondary mb-2">This month at a glance</div>
-        <div className="flex items-end gap-3 mb-1">
-          <span className="text-[52px] font-bold tracking-[-0.03em] leading-none">{overview.hoursThisMonth}</span>
-          <span className="text-[16px] text-text-secondary mb-2">hours logged</span>
-        </div>
-        <div className="mt-2 mb-6">
-          <Sparkline data={overview.chart.slice(-14).map((d) => d.hours)} width={280} height={56} />
+        <div className="text-[14px] text-text-secondary mb-2">CipherSchools operations</div>
+        <div className="text-[28px] font-bold tracking-[-0.02em] leading-snug mb-3">
+          Mentor attendance &amp; teaching hours, in one place.
         </div>
         <p className="text-[15px] text-text-secondary leading-[1.6]">
-          {overview.activeMentors} active mentors across LPU and GU checked in this month, with{' '}
-          {overview.flaggedCount} day{overview.flaggedCount === 1 ? '' : 's'} still waiting on a correction.
+          Manage mentor accounts and timetables, review daily attendance with photo proof,
+          correct missed check-outs, and track hours across LPU and GU.
         </p>
       </div>
     </div>

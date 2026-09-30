@@ -1,88 +1,115 @@
-import { readDb, todayStr, monthKey, scheduledHoursFor, deriveDay } from '@cipher/shared';
+import { callBackend, normDate, normTime, prettyTime, num } from '@cipher/shared';
 
-function fmtTime(iso) {
-  if (!iso) return null;
-  return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
-}
-function toTimeInput(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-function fmtDay(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-function addDaysStr(dateStr, delta) {
-  const d = fmtDay(dateStr);
-  d.setDate(d.getDate() + delta);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+const IST = 'Asia/Kolkata';
+const UNI_NAMES = { LPU: 'Lovely Professional University', GU: 'Galgotias University' };
 
-function allDerivedRecords(db, mentorId) {
-  const today = todayStr();
-  return db.attendance
-    .filter((a) => a.mentorId === mentorId)
-    .map((r) => deriveDay(r, db.timetables, today))
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
+function istToday() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: IST });
+}
+function dateFromStr(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+function addDaysStr(s, delta) { const d = dateFromStr(s); d.setDate(d.getDate() + delta); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function round1(n) { return Math.round((n || 0) * 10) / 10; }
+function shortDate(s) { return dateFromStr(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
+
+function uniInfo(str) {
+  const code = String(str || '').trim();
+  return { id: code, code, name: UNI_NAMES[code] || code };
+}
+function universitiesFrom(mentors) {
+  const set = new Set(['LPU', 'GU']);
+  mentors.forEach((m) => { if (m.university) set.add(String(m.university).trim()); });
+  return Array.from(set).map((c) => uniInfo(c));
 }
 
-export function mentorsById(db) {
+async function fetchMentors() {
+  const r = await callBackend('getMentors', {});
+  return (r.mentors || []).map((m) => ({
+    id: m.mentor_id,
+    name: m.name,
+    email: m.email,
+    university: m.university,
+    universityCode: m.university,
+    universityName: UNI_NAMES[m.university] || m.university,
+  }));
+}
+
+// Derive display status + hours from a cleaned backend attendance record.
+function deriveRow(r, mentorsById, today) {
+  const date = normDate(r.date);
+  const checkIn = normTime(r.check_in_time);
+  const checkOut = normTime(r.check_out_time);
+  const override = num(r.admin_hours_override);
+  const hours = override != null ? override : num(r.computed_hours);
+  const isLeave = String(r.status).toLowerCase() === 'leave' || !!r.leave_reason;
+  let status = 'absent';
+  if (isLeave) status = 'leave';
+  else if (checkIn && checkOut) status = 'present';
+  else if (checkIn && !checkOut) status = date === today ? 'in_progress' : 'flagged';
+  const mentor = mentorsById[r.mentor_id];
+  return {
+    id: r.record_id,
+    mentorId: r.mentor_id,
+    mentorName: mentor?.name || r.mentor_id,
+    universityCode: mentor?.university || '',
+    date,
+    checkIn, checkOut,
+    checkInAtFmt: prettyTime(checkIn),
+    checkOutAtFmt: prettyTime(checkOut),
+    checkInTimeValue: checkIn || '',
+    checkOutTimeValue: checkOut || '',
+    checkInPhotoId: r.check_in_photo_id || null,
+    checkOutPhotoId: r.check_out_photo_id || null,
+    leaveReason: r.leave_reason ? String(r.leave_reason) : null,
+    hours: status === 'present' ? hours : null,
+    status,
+  };
+}
+
+function mentorsByIdMap(mentors) {
   const map = {};
-  db.mentors.forEach((m) => { map[m.id] = m; });
+  mentors.forEach((m) => { map[m.id] = m; });
   return map;
 }
-export function universitiesById(db) {
-  const map = {};
-  db.universities.forEach((u) => { map[u.id] = u; });
-  return map;
-}
 
-// ---------- Overview ----------
-export function getOverviewData() {
-  const db = readDb();
-  const today = todayStr();
-  const mk = monthKey(today);
-  const uni = universitiesById(db);
+// ───────────────────────── Overview ─────────────────────────
+export async function getOverviewData() {
+  const today = istToday();
+  const [mentors, logRes] = await Promise.all([
+    fetchMentors(),
+    callBackend('getAttendanceLog', {}),
+  ]);
+  const byId = mentorsByIdMap(mentors);
+  const rows = (logRes.records || []).map((r) => deriveRow(r, byId, today));
 
-  const activeMentors = db.mentors.filter((m) => m.active).length;
-  const totalMentors = db.mentors.length;
-
+  const monthPrefix = today.slice(0, 7);
   let hoursThisMonth = 0;
-  let onLeaveToday = [];
-  let flagged = [];
-  const perDay = {}; // dateStr -> hours, last 30 days
-
+  const onLeaveToday = [];
+  const flagged = [];
+  const perDay = {};
   const last30 = [];
-  for (let i = 29; i >= 0; i--) last30.push(addDaysStr(today, -i));
-  last30.forEach((d) => { perDay[d] = 0; });
+  for (let i = 29; i >= 0; i--) { const d = addDaysStr(today, -i); last30.push(d); perDay[d] = 0; }
 
-  db.mentors.forEach((mentor) => {
-    const derived = allDerivedRecords(db, mentor.id);
-    derived.forEach((r) => {
-      if (r.date.startsWith(mk) && r.status === 'present') hoursThisMonth += r.hours || 0;
-      if (perDay[r.date] !== undefined && r.status === 'present') perDay[r.date] += r.hours || 0;
-      if (r.date === today && r.status === 'leave') onLeaveToday.push(mentor);
-      if (r.status === 'flagged') {
-        flagged.push({
-          id: r.id,
-          mentorId: mentor.id,
-          mentorName: mentor.name,
-          universityCode: uni[mentor.universityId]?.code,
-          date: r.date,
-          checkInAtFmt: fmtTime(r.checkInAt),
-        });
-      }
-    });
+  rows.forEach((r) => {
+    if (r.status === 'present' && r.date.startsWith(monthPrefix)) hoursThisMonth += r.hours || 0;
+    if (r.status === 'present' && perDay[r.date] !== undefined) perDay[r.date] += r.hours || 0;
+    if (r.status === 'leave' && r.date === today) {
+      const m = byId[r.mentorId];
+      if (m) onLeaveToday.push({ id: m.id, name: m.name });
+    }
+    if (r.status === 'flagged') {
+      flagged.push({
+        id: r.id, mentorId: r.mentorId, mentorName: r.mentorName,
+        universityCode: r.universityCode, date: r.date, checkInAtFmt: r.checkInAtFmt,
+      });
+    }
   });
-
   flagged.sort((a, b) => (a.date < b.date ? 1 : -1));
 
   return {
-    activeMentors,
-    totalMentors,
+    activeMentors: mentors.length,
+    totalMentors: mentors.length,
     hoursThisMonth: round1(hoursThisMonth),
-    monthLabel: fmtDay(today + '').toLocaleDateString('en-IN', { month: 'long' }),
+    monthLabel: dateFromStr(today).toLocaleDateString('en-IN', { month: 'long' }),
     onLeaveToday,
     flaggedCount: flagged.length,
     flagged: flagged.slice(0, 6),
@@ -90,70 +117,61 @@ export function getOverviewData() {
   };
 }
 
-// ---------- Mentors ----------
-export function getMentorsList({ query = '', universityId = '' } = {}) {
-  const db = readDb();
-  const uni = universitiesById(db);
-  let list = db.mentors.map((m) => ({
-    ...m,
-    universityCode: uni[m.universityId]?.code,
-    universityName: uni[m.universityId]?.name,
-  }));
+// ───────────────────────── Mentors ─────────────────────────
+export async function getMentorsList({ query = '', universityId = '' } = {}) {
+  const mentors = await fetchMentors();
+  let list = mentors.slice();
   if (query) {
     const q = query.toLowerCase();
     list = list.filter((m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q));
   }
-  if (universityId) list = list.filter((m) => m.universityId === universityId);
+  if (universityId) list = list.filter((m) => String(m.university) === universityId);
   list.sort((a, b) => a.name.localeCompare(b.name));
-  return { mentors: list, universities: db.universities, total: db.mentors.length };
+  return { mentors: list, universities: universitiesFrom(mentors), total: mentors.length };
 }
 
-// ---------- Timetables ----------
-export function getTimetableData(mentorId) {
-  const db = readDb();
-  const uni = universitiesById(db);
-  const mentor = db.mentors.find((m) => m.id === mentorId);
-  if (!mentor) return null;
-  const versions = db.timetables
-    .filter((t) => t.mentorId === mentorId)
-    .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1));
+// ───────────────────────── Timetables ─────────────────────────
+function mapVersion(t) {
   return {
-    mentor: { ...mentor, universityCode: uni[mentor.universityId]?.code, universityName: uni[mentor.universityId]?.name },
-    mentors: db.mentors.map((m) => ({ id: m.id, name: m.name })),
+    id: t.timetable_id,
+    mentorId: t.mentor_id,
+    mon: num(t.mon_classes) || 0, tue: num(t.tue_classes) || 0, wed: num(t.wed_classes) || 0,
+    thu: num(t.thu_classes) || 0, fri: num(t.fri_classes) || 0,
+    minutesPerClass: num(t.minutes_per_class) || 50,
+    effectiveFrom: normDate(t.effective_from),
+    effectiveTo: null,
+    attachmentName: t.reference_file_id || null,
+  };
+}
+export async function getTimetableData(mentorId) {
+  const mentors = await fetchMentors();
+  if (!mentorId) mentorId = mentors[0]?.id;
+  const mentor = mentors.find((m) => m.id === mentorId);
+  if (!mentor) return null;
+  const ttRes = await callBackend('getTimetable', { mentor_id: mentorId });
+  const versions = (ttRes.versions || []).map(mapVersion)
+    .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1));
+  // Fill effectiveTo for history (day before the next-newer version starts).
+  for (let i = 1; i < versions.length; i++) versions[i].effectiveTo = addDaysStr(versions[i - 1].effectiveFrom, -1);
+  return {
+    mentor: { ...mentor },
+    mentors: mentors.map((m) => ({ id: m.id, name: m.name })),
     active: versions[0] || null,
     history: versions.slice(1),
   };
 }
 
-// ---------- Attendance log ----------
-export function getAttendanceLog({ mentorId = '', universityId = '', from = '', to = '' } = {}) {
-  const db = readDb();
-  const uni = universitiesById(db);
-  const mById = mentorsById(db);
-  const today = todayStr();
-
-  let mentorIds = Object.keys(mById);
-  if (mentorId) mentorIds = [mentorId];
-  if (universityId) mentorIds = mentorIds.filter((id) => mById[id].universityId === universityId);
-
-  let rows = db.attendance.filter((a) => mentorIds.includes(a.mentorId));
-  if (from) rows = rows.filter((r) => r.date >= from);
-  if (to) rows = rows.filter((r) => r.date <= to);
-
-  rows = rows.map((r) => {
-    const d = deriveDay(r, db.timetables, today);
-    const mentor = mById[r.mentorId];
-    return {
-      ...d,
-      mentorName: mentor?.name,
-      universityCode: uni[mentor?.universityId]?.code,
-      checkInAtFmt: fmtTime(r.checkInAt),
-      checkOutAtFmt: fmtTime(r.checkOutAt),
-      checkInTimeValue: toTimeInput(r.checkInAt),
-      checkOutTimeValue: toTimeInput(r.checkOutAt),
-      scheduledHours: scheduledHoursFor(db.timetables, r.mentorId, r.date),
-    };
-  }).sort((a, b) => (a.date < b.date ? 1 : -1));
+// ───────────────────────── Attendance log ─────────────────────────
+export async function getAttendanceLog({ mentorId = '', universityId = '', from = '', to = '' } = {}) {
+  const today = istToday();
+  const [mentors, logRes] = await Promise.all([
+    fetchMentors(),
+    callBackend('getAttendanceLog', Object.assign({}, mentorId ? { mentor_id: mentorId } : {}, from ? { start_date: from } : {}, to ? { end_date: to } : {})),
+  ]);
+  const byId = mentorsByIdMap(mentors);
+  let rows = (logRes.records || []).map((r) => deriveRow(r, byId, today));
+  if (universityId) rows = rows.filter((r) => String(r.universityCode) === universityId);
+  rows.sort((a, b) => (a.date < b.date ? 1 : -1));
 
   const stats = {
     daysPresent: rows.filter((r) => r.status === 'present').length,
@@ -161,80 +179,62 @@ export function getAttendanceLog({ mentorId = '', universityId = '', from = '', 
     leaveDays: rows.filter((r) => r.status === 'leave').length,
     flagged: rows.filter((r) => r.status === 'flagged').length,
   };
-
   return {
-    rows,
-    stats,
-    mentors: db.mentors.map((m) => ({ id: m.id, name: m.name })),
-    universities: db.universities,
+    rows, stats,
+    mentors: mentors.map((m) => ({ id: m.id, name: m.name })),
+    universities: universitiesFrom(mentors),
   };
 }
 
-// ---------- Reports ----------
-export function getReportsData({ mentorId, from = '', to = '' }) {
-  const db = readDb();
-  const mentor = db.mentors.find((m) => m.id === mentorId);
+// ───────────────────────── Reports ─────────────────────────
+function mondayOf(dateStr) {
+  const d = dateFromStr(dateStr);
+  const dow = d.getDay();
+  d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+export async function getReportsData({ mentorId, from = '', to = '' }) {
+  const today = istToday();
+  const mentors = await fetchMentors();
+  if (!mentorId) mentorId = mentors[0]?.id;
+  const mentor = mentors.find((m) => m.id === mentorId);
   if (!mentor) return null;
-  const uni = universitiesById(db)[mentor.universityId];
-  const today = todayStr();
-  const derived = allDerivedRecords(db, mentorId);
+  const [repRes, logRes] = await Promise.all([
+    callBackend('getReports', Object.assign({ mentor_id: mentorId }, from ? { start_date: from } : {}, to ? { end_date: to } : {})),
+    callBackend('getAttendanceLog', { mentor_id: mentorId }),
+  ]);
+  const byId = mentorsByIdMap(mentors);
+  const rows = (logRes.records || []).map((r) => deriveRow(r, byId, today)).sort((a, b) => (a.date < b.date ? 1 : -1));
 
-  const presentAll = derived.filter((r) => r.status === 'present');
-  const leaveAll = derived.filter((r) => r.status === 'leave');
-  const lifetimeHours = round1(presentAll.reduce((s, r) => s + (r.hours || 0), 0));
-  const firstDate = derived.length ? derived[derived.length - 1].date : today;
+  const presentDays = rows.filter((r) => r.status === 'present').length;
+  const leaveDays = rows.filter((r) => r.status === 'leave').length;
+  const since = rows.length ? rows[rows.length - 1].date : today;
 
-  // Per-month totals (up to the 6 most recent months with any activity).
-  const byMonth = {};
-  derived.forEach((r) => {
-    if (r.status !== 'present') return;
-    const mk = monthKey(r.date);
-    byMonth[mk] = (byMonth[mk] || 0) + (r.hours || 0);
-  });
-  const monthly = Object.entries(byMonth)
-    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-    .slice(0, 6)
-    .reverse()
-    .map(([mk, hrs]) => ({
-      month: mk,
-      label: fmtDay(mk + '-01').toLocaleDateString('en-IN', { month: 'short' }),
-      hours: round1(hrs),
-    }));
+  const perMonth = repRes.perMonth || {};
+  const monthly = Object.keys(perMonth)
+    .filter((k) => /^\d{4}-\d{2}$/.test(k))
+    .sort()
+    .slice(-6)
+    .map((mk) => ({ month: mk, label: dateFromStr(mk + '-01').toLocaleDateString('en-IN', { month: 'short' }), hours: round1(perMonth[mk]) }));
 
-  // Trend: filter by from/to if given, else last 90 days; weekly buckets.
+  // Weekly buckets from the daily trend (getReports.trend).
   const rangeFrom = from || addDaysStr(today, -90);
   const rangeTo = to || today;
-  const ranged = derived.filter((r) => r.date >= rangeFrom && r.date <= rangeTo && r.status === 'present');
   const weekBuckets = {};
-  ranged.forEach((r) => {
-    const weekStart = mondayOf(r.date);
-    weekBuckets[weekStart] = (weekBuckets[weekStart] || 0) + (r.hours || 0);
+  (repRes.trend || []).forEach((t) => {
+    const d = normDate(t.date);
+    if (d < rangeFrom || d > rangeTo) return;
+    const wk = mondayOf(d);
+    weekBuckets[wk] = (weekBuckets[wk] || 0) + Number(t.hours || 0);
   });
-  const trend = Object.entries(weekBuckets)
-    .sort((a, b) => (a[0] > b[0] ? 1 : -1))
-    .map(([week, hrs]) => ({ week, label: shortLabel(week), hours: round1(hrs) }));
+  const trend = Object.keys(weekBuckets).sort().map((wk) => ({ week: wk, label: shortDate(wk), hours: round1(weekBuckets[wk]) }));
 
   return {
-    mentor: { ...mentor, universityCode: uni?.code, universityName: uni?.name },
-    mentors: db.mentors.map((m) => ({ id: m.id, name: m.name })),
-    lifetimeHours,
-    presentDays: presentAll.length,
-    leaveDays: leaveAll.length,
-    since: firstDate,
-    monthly,
-    trend,
+    mentor: { ...mentor, active: true },
+    mentors: mentors.map((m) => ({ id: m.id, name: m.name })),
+    lifetimeHours: round1(repRes.lifetime || 0),
+    presentDays, leaveDays, since,
+    monthly, trend,
     range: { from: rangeFrom, to: rangeTo },
   };
 }
-
-function mondayOf(dateStr) {
-  const d = fmtDay(dateStr);
-  const dow = d.getDay();
-  const offset = dow === 0 ? -6 : 1 - dow;
-  d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function shortLabel(dateStr) {
-  return fmtDay(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-}
-function round1(n) { return Math.round((n || 0) * 10) / 10; }
