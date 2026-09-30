@@ -120,12 +120,9 @@ export async function getMentorHomeData(session) {
     return { key: wd.key, label: wd.label, dateStr: ds, isToday: ds === today, type, hours };
   });
 
-  // Only fetch the check-in photo when we'll actually show it (checked-in state).
-  let checkInPhoto = null;
-  if (status === 'checkedIn' && todayRec?.checkInPhotoId) {
-    checkInPhoto = await fetchPhotoDataUrl(todayRec.checkInPhotoId);
-  }
-
+  // Note: we deliberately do NOT fetch the check-in selfie here — that was an
+  // extra (slow) backend round trip on every home load. The mentor's own photo
+  // isn't essential on their home screen; we show the confirmed time instead.
   const uni = session.university || '';
   return {
     mentor: { id: mentorId, name: session.name, email: session.email },
@@ -136,7 +133,6 @@ export async function getMentorHomeData(session) {
     record: todayRec ? {
       checkInAtFmt: prettyTime(todayRec.checkIn),
       checkOutAtFmt: prettyTime(todayRec.checkOut),
-      checkInPhoto,
       leaveReason: todayRec.leaveReason,
     } : null,
     classesToday,

@@ -1,0 +1,22 @@
+name: Keep backend warm
+
+# Pings the app every 10 minutes during IST working hours so Google Apps Script
+# and the Vercel functions don't go cold. A cold first load can take 15+ seconds;
+# keeping it warm makes real mentor loads fast.
+# 03:00–12:59 UTC = ~08:30–18:30 IST. Adjust the hours if your day differs.
+#
+# Requires one repository secret:
+#   MENTOR_APP_URL → your deployed mentor app base URL (already set for reminders)
+
+on:
+  schedule:
+    - cron: '*/10 3-12 * * *'
+  workflow_dispatch:
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping app
+        run: |
+          curl -s -S -L -m 60 "${{ secrets.MENTOR_APP_URL }}/api/warm" || true

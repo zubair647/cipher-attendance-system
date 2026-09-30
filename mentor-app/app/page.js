@@ -1,21 +1,23 @@
 import { getSession } from '../lib/session';
-import { getMentorHomeData } from '../lib/mentorData';
-import HomeClient from '../components/HomeClient';
+import HomeShell from '../components/HomeShell';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage({ searchParams }) {
+export default function HomePage({ searchParams }) {
   const session = getSession();
-  const data = await getMentorHomeData(session);
-
-  if (!data || data.error) {
+  // getSession only reads the cookie (instant, no backend), so the shell paints
+  // immediately. HomeShell fetches the live data itself and fills it in.
+  if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center px-6 text-center text-text-secondary">
-        {data?.error
-          ? `Couldn’t load your data: ${data.error}`
-          : 'Your account could not be found. Please contact your coordinator.'}
+        Please log in again.
       </div>
     );
   }
-  return <HomeClient data={data} banner={searchParams?.banner || null} />;
+  return (
+    <HomeShell
+      session={{ mentor_id: session.mentor_id, name: session.name, email: session.email, university: session.university }}
+      banner={searchParams?.banner || null}
+    />
+  );
 }

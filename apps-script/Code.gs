@@ -165,18 +165,36 @@ function getMentorStatus(p) {
   return { record: rec ? cleanRecord_(rec) : null };
 }
 
+// Run fn while holding the script lock, so simultaneous requests are processed
+// one at a time (the "queue") and can't corrupt the sheet. The slow Drive
+// upload happens BEFORE the lock so the lock is held only briefly.
+function withLock_(fn) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+
 function checkIn(p) {
-  var date = todayStr(), time = nowTimeStr();
+  // Timestamp is taken on the mentor's phone at capture time when provided,
+  // so a delayed/retried upload still records the real moment.
+  var date = p.client_date ? ymd_(p.client_date) : todayStr();
+  var time = p.client_time ? hm_(p.client_time) : nowTimeStr();
   var photoId = savePhoto(p.mentor_name, date, 'CheckIn', p.photo_base64);
-  var sheet = attendanceSheet();
-  var rowNum = findRowNumber(sheet, 'record_id', findExistingRecordId(sheet, p.mentor_id, date));
-  if (rowNum === -1) {
-    sheet.appendRow([Utilities.getUuid(), p.mentor_id, date, time, photoId, '', '', 'present', '', '', '', '']);
-  } else {
+  return withLock_(function () {
+    var sheet = attendanceSheet();
+    var rowNum = findRowNumber(sheet, 'record_id', findExistingRecordId(sheet, p.mentor_id, date));
+    if (rowNum === -1) {
+      sheet.appendRow([Utilities.getUuid(), p.mentor_id, date, time, photoId, '', '', 'present', '', '', '', '']);
+      return { success: true, check_in_time: time };
+    }
+    // Already has a row today. If already checked in, treat a repeat as success
+    // (idempotent — a retried upload won't create a duplicate).
+    var existing = sheet.getRange(rowNum, 4).getValue();
+    if (existing) return { success: true, check_in_time: hm_(existing), duplicate: true };
     sheet.getRange(rowNum, 4).setValue(time);
     sheet.getRange(rowNum, 5).setValue(photoId);
-  }
-  return { success: true, check_in_time: time };
+    return { success: true, check_in_time: time };
+  });
 }
 
 function findExistingRecordId(sheet, mentorId, date) {
@@ -187,18 +205,23 @@ function findExistingRecordId(sheet, mentorId, date) {
 }
 
 function checkOut(p) {
-  var date = todayStr(), time = nowTimeStr();
+  var date = p.client_date ? ymd_(p.client_date) : todayStr();
+  var time = p.client_time ? hm_(p.client_time) : nowTimeStr();
   var photoId = savePhoto(p.mentor_name, date, 'CheckOut', p.photo_base64);
-  var sheet = attendanceSheet();
-  var recId = findExistingRecordId(sheet, p.mentor_id, date);
-  var rowNum = findRowNumber(sheet, 'record_id', recId);
-  if (rowNum === -1) return { error: 'No check-in found for today' };
-  sheet.getRange(rowNum, 6).setValue(time);
-  sheet.getRange(rowNum, 7).setValue(photoId);
-  var hours = computeHours(p.mentor_id, date);
-  sheet.getRange(rowNum, 10).setValue(hours);
-  dailyHoursSheet().appendRow([p.mentor_id, date, hours, 'computed']);
-  return { success: true, check_out_time: time, hours: hours };
+  return withLock_(function () {
+    var sheet = attendanceSheet();
+    var rowNum = findRowNumber(sheet, 'record_id', findExistingRecordId(sheet, p.mentor_id, date));
+    if (rowNum === -1) return { error: 'No check-in found for today' };
+    // Idempotent: if already checked out, a retry is a success, not a double.
+    var existingOut = sheet.getRange(rowNum, 6).getValue();
+    if (existingOut) return { success: true, check_out_time: hm_(existingOut), duplicate: true };
+    sheet.getRange(rowNum, 6).setValue(time);
+    sheet.getRange(rowNum, 7).setValue(photoId);
+    var hours = computeHours(p.mentor_id, date);
+    sheet.getRange(rowNum, 10).setValue(hours);
+    dailyHoursSheet().appendRow([p.mentor_id, date, hours, 'computed']);
+    return { success: true, check_out_time: time, hours: hours };
+  });
 }
 
 function computeHours(mentorId, dateStr) {
@@ -217,21 +240,23 @@ function computeHours(mentorId, dateStr) {
 
 function markLeave(p) {
   var date = ymd_(p.date || todayStr());
-  var sheet = attendanceSheet();
-  var recId = findExistingRecordId(sheet, p.mentor_id, date);
-  var rowNum = findRowNumber(sheet, 'record_id', recId);
-  if (rowNum !== -1 && sheet.getRange(rowNum, 4).getValue()) {
-    return { error: 'Cannot mark leave after check-in' };
-  }
-  if (rowNum === -1) {
-    sheet.appendRow([Utilities.getUuid(), p.mentor_id, date, '', '', '', '', 'leave', p.reason, 0, '', '']);
-  } else {
-    sheet.getRange(rowNum, 8).setValue('leave');
-    sheet.getRange(rowNum, 9).setValue(p.reason);
-    sheet.getRange(rowNum, 10).setValue(0);
-  }
-  dailyHoursSheet().appendRow([p.mentor_id, date, 0, 'leave']);
-  return { success: true };
+  return withLock_(function () {
+    var sheet = attendanceSheet();
+    var rowNum = findRowNumber(sheet, 'record_id', findExistingRecordId(sheet, p.mentor_id, date));
+    if (rowNum !== -1 && sheet.getRange(rowNum, 4).getValue()) {
+      return { error: 'Cannot mark leave after check-in' };
+    }
+    if (rowNum === -1) {
+      sheet.appendRow([Utilities.getUuid(), p.mentor_id, date, '', '', '', '', 'leave', p.reason, 0, '', '']);
+    } else {
+      if (sheet.getRange(rowNum, 8).getValue() === 'leave') return { success: true, duplicate: true };
+      sheet.getRange(rowNum, 8).setValue('leave');
+      sheet.getRange(rowNum, 9).setValue(p.reason);
+      sheet.getRange(rowNum, 10).setValue(0);
+    }
+    dailyHoursSheet().appendRow([p.mentor_id, date, 0, 'leave']);
+    return { success: true };
+  });
 }
 
 function getPhoto(p) {
