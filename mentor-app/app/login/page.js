@@ -43,9 +43,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-7 bg-canvas">
       <div className="w-full max-w-[360px]">
         <div className="flex flex-col items-center mb-8">
-          <Logo size={56} borderWidth={4} />
-          <div className="mt-4 text-[22px] font-semibold tracking-[-0.01em] text-text-primary">CipherSchools</div>
-          <div className="text-[15px] text-text-secondary mt-0.5">Mentor attendance</div>
+          <Logo size={56} />
+          <div className="mt-4 text-[22px] font-semibold tracking-[-0.01em] text-text-primary">CSAS</div>
+          <div className="text-[15px] text-text-secondary mt-0.5">CipherSchools Attendance System</div>
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">

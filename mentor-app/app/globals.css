@@ -19,3 +19,89 @@ input, textarea, button {
 ::placeholder {
   color: #9AA0AA;
 }
+
+/* ───────────────────────── Animated splash / loading ───────────────────────── */
+@property --cs-p { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+@keyframes cs-pop   { 0%{transform:scale(.55);opacity:0} 65%{transform:scale(1.03);opacity:1} 100%{transform:scale(1);opacity:1} }
+@keyframes cs-sweep { from{--cs-p:0deg} to{--cs-p:276deg} }
+@keyframes cs-seg   { 0%{opacity:0;transform:translateX(-6%) scale(.9)} 100%{opacity:1;transform:none} }
+@keyframes cs-blink { 0%,100%{filter:brightness(1)} 50%{filter:brightness(.55)} }
+@keyframes cs-dash  { 0%{stroke-dasharray:2 98;stroke-dashoffset:0}
+                      50%{stroke-dasharray:38 62;stroke-dashoffset:-12}
+                      100%{stroke-dasharray:2 98;stroke-dashoffset:-100} }
+@keyframes cs-spin  { to{transform:rotate(360deg)} }
+@keyframes cs-fade  { from{opacity:0} to{opacity:1} }
+@keyframes cs-rule  { from{transform:scaleX(0)} to{transform:scaleX(1)} }
+@keyframes cs-msg   { 0%{opacity:0;transform:translateY(5px)} 100%{opacity:1;transform:none} }
+
+.cs-splash {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: #f3f2f2;
+  transition: opacity .4s ease;
+}
+.cs-splash[data-exit="true"] { opacity: 0; }
+@media (prefers-color-scheme: dark) { .cs-splash { background: #1a1816; } }
+
+.cs-stage { position: relative; width: 240px; height: 240px; }
+.cs-stage > * { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.cs-ring { overflow: visible; opacity: 0; animation: cs-fade .6s ease .1s both; }
+.cs-ring .cs-track { stroke: #e4e2e1; }
+.cs-ring .cs-arc-g { animation: cs-spin 1.6s linear infinite; transform-origin: 256px 256px; transform-box: view-box; }
+.cs-ring .cs-arc { animation: cs-dash 1.6s ease-in-out infinite; }
+@media (prefers-color-scheme: dark) { .cs-ring .cs-track { stroke: rgba(243,242,242,.12); } }
+
+.cs-disc { inset: 5.078%; border-radius: 50%; background: rgb(35,41,50); animation: cs-pop .6s cubic-bezier(.2,.8,.2,1) both; }
+
+.cs-c {
+  --cs-p: 276deg; /* fallback full-C when @property/animation is unsupported */
+  object-fit: contain;
+  -webkit-mask-image:
+    radial-gradient(circle closest-side, #000 0 37%, transparent 37.2%),
+    conic-gradient(from 132deg, transparent 0deg calc(276deg - var(--cs-p)), #000 calc(276deg - var(--cs-p)) 276deg, transparent 276deg);
+  mask-image:
+    radial-gradient(circle closest-side, #000 0 37%, transparent 37.2%),
+    conic-gradient(from 132deg, transparent 0deg calc(276deg - var(--cs-p)), #000 calc(276deg - var(--cs-p)) 276deg, transparent 276deg);
+  animation: cs-sweep 1s cubic-bezier(.65,0,.35,1) .45s both;
+}
+
+.cs-seg { object-fit: contain; opacity: 0; }
+.cs-seg-top {
+  -webkit-mask-image: conic-gradient(from 48deg, #000 0deg 33deg, transparent 33deg), radial-gradient(circle closest-side, transparent 0 37%, #000 37.2%);
+  mask-image: conic-gradient(from 48deg, #000 0deg 33deg, transparent 33deg), radial-gradient(circle closest-side, transparent 0 37%, #000 37.2%);
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+  animation: cs-seg .32s cubic-bezier(.2,.9,.3,1.4) 1.50s both, cs-blink 1.6s ease-in-out 2.4s infinite;
+}
+.cs-seg-bot {
+  -webkit-mask-image: conic-gradient(from 81deg, #000 0deg 51deg, transparent 51deg), radial-gradient(circle closest-side, transparent 0 37%, #000 37.2%);
+  mask-image: conic-gradient(from 81deg, #000 0deg 51deg, transparent 51deg), radial-gradient(circle closest-side, transparent 0 37%, #000 37.2%);
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+  animation: cs-seg .32s cubic-bezier(.2,.9,.3,1.4) 1.68s both, cs-blink 1.6s ease-in-out 2.6s infinite;
+}
+
+.cs-status { margin-top: 64px; display: flex; flex-direction: column; align-items: center; opacity: 0; animation: cs-fade .5s ease 1.3s both; }
+.cs-rule { width: 160px; height: 1px; background: #e4e2e1; overflow: hidden; }
+.cs-rule-fill { width: 100%; height: 100%; background: #f0952f; transform-origin: left; transform: scaleX(0); animation: cs-rule 4s ease both; }
+.cs-msg {
+  margin-top: 12px; height: 18px; font-family: Georgia, 'Times New Roman', serif;
+  font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #6b6862;
+  animation: cs-msg .35s ease;
+}
+.cs-msg[data-ready="true"] { color: #8a5f22; }
+@media (prefers-color-scheme: dark) {
+  .cs-rule { background: rgba(243,242,242,.15); }
+  .cs-msg { color: #9a968e; }
+  .cs-msg[data-ready="true"] { color: #e0c08f; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-ring, .cs-ring .cs-arc-g, .cs-ring .cs-arc,
+  .cs-disc, .cs-c, .cs-seg-top, .cs-seg-bot,
+  .cs-status, .cs-rule-fill, .cs-msg { animation: none !important; }
+  .cs-ring, .cs-status { opacity: 1; }
+  .cs-c { --cs-p: 276deg; }
+  .cs-seg { opacity: 1; }
+  .cs-rule-fill { transform: scaleX(1); }
+}

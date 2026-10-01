@@ -6,6 +6,7 @@ import { Check, Circle, Square } from 'lucide-react';
 import Logo from './Logo';
 import LeaveSheet from './LeaveSheet';
 import PwaManager from './PwaManager';
+import SplashScreen from './SplashScreen';
 import { flushOutbox } from '../lib/outbox';
 
 const IST = 'Asia/Kolkata';
@@ -43,6 +44,18 @@ export default function HomeShell({ session, banner }) {
 
   const [attempt, setAttempt] = useState(0);
   const [waking, setWaking] = useState(false);
+
+  // Animated splash — shown once per browser session while the app loads.
+  const [mounted, setMounted] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    try { if (sessionStorage.getItem('cs_splash_shown') === '1') setSplashDone(true); } catch {}
+  }, []);
+  function finishSplash() {
+    try { sessionStorage.setItem('cs_splash_shown', '1'); } catch {}
+    setSplashDone(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -98,11 +111,15 @@ export default function HomeShell({ session, banner }) {
   const status = data?.status;
 
   return (
+    <>
+    {mounted && !splashDone && (
+      <SplashScreen ready={!!data || loadError} onDone={finishSplash} />
+    )}
     <div className="min-h-screen flex flex-col max-w-[480px] mx-auto">
       <header className="flex items-center justify-between px-5 pt-5 pb-2">
         <div className="flex items-center gap-2.5">
           <Logo size={22} />
-          <span className="text-[16px] font-semibold">CipherSchools</span>
+          <span className="text-[16px] font-semibold">CSAS</span>
         </div>
         <button onClick={logout} title="Log out"
           className="w-[38px] h-[38px] rounded-full bg-[#22252A] text-white text-[13px] font-semibold flex items-center justify-center">
@@ -261,6 +278,7 @@ export default function HomeShell({ session, banner }) {
         <LeaveSheet dateLabel={`${date.weekday}, ${date.full}`} onClose={() => setLeaveOpen(false)} />
       )}
     </div>
+    </>
   );
 }
 

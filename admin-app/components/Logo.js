@@ -1,7 +1,7 @@
 export default function Logo({ size = 32 }) {
   return (
     <img
-      src="/logo.svg"
+      src="/logo.png"
       alt="CipherSchools"
       width={size}
       height={size}

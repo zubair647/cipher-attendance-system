@@ -1,7 +1,7 @@
 {
-  "name": "Cipher Attendance",
-  "short_name": "Cipher",
-  "description": "Mentor attendance and teaching hours for CipherSchools.",
+  "name": "CSAS",
+  "short_name": "CSAS",
+  "description": "CipherSchools Attendance System — mentor check-in and teaching hours.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

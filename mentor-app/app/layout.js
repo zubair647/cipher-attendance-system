@@ -1,13 +1,13 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Cipher Attendance',
-  description: 'Mentor attendance and teaching hours for CipherSchools.',
+  title: 'CSAS',
+  description: 'CipherSchools Attendance System — mentor check-in and teaching hours.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Cipher',
+    title: 'CSAS',
   },
   icons: {
     icon: [
