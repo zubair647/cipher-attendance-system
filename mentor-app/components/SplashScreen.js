@@ -7,7 +7,7 @@ const MESSAGES = [
   'We’re almost done…',
   'Ready',
 ];
-const MIN_DISPLAY = 2200; // ms — let the logo build finish
+const MIN_DISPLAY = 1600; // ms — brief, just enough to feel intentional
 const LOGO = '/assets/cs-logo.png';
 
 export default function SplashScreen({ ready, onDone }) {
@@ -16,10 +16,10 @@ export default function SplashScreen({ ready, onDone }) {
   const start = useRef(Date.now());
   const finalized = useRef(false);
 
-  // Time-based message progression (1 → 3) until the app signals ready.
+  // Time-based message progression (0 → 2) until the app signals ready.
   useEffect(() => {
-    const t1 = setTimeout(() => setMsg((m) => (m < 1 ? 1 : m)), 1400);
-    const t2 = setTimeout(() => setMsg((m) => (m < 2 ? 2 : m)), 2500);
+    const t1 = setTimeout(() => setMsg((m) => (m < 1 ? 1 : m)), 1000);
+    const t2 = setTimeout(() => setMsg((m) => (m < 2 ? 2 : m)), 1900);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
@@ -30,8 +30,8 @@ export default function SplashScreen({ ready, onDone }) {
     const elapsed = Date.now() - start.current;
     const wait = Math.max(0, MIN_DISPLAY - elapsed);
     const toReady = setTimeout(() => setMsg(3), wait);
-    const toExit = setTimeout(() => setExiting(true), wait + 400);
-    const toDone = setTimeout(() => onDone && onDone(), wait + 800);
+    const toExit = setTimeout(() => setExiting(true), wait + 350);
+    const toDone = setTimeout(() => onDone && onDone(), wait + 700);
     return () => { clearTimeout(toReady); clearTimeout(toExit); clearTimeout(toDone); };
   }, [ready, onDone]);
 
@@ -39,23 +39,14 @@ export default function SplashScreen({ ready, onDone }) {
 
   return (
     <div className="cs-splash" data-exit={exiting ? 'true' : 'false'} role="status" aria-live="polite">
-      <link rel="preload" as="image" href={LOGO} />
       <div className="cs-stage">
-        <svg className="cs-ring" viewBox="0 0 512 512" aria-hidden="true">
-          <circle className="cs-track" cx="256" cy="256" r="252" fill="none" strokeWidth="4" />
-          <g className="cs-arc-g">
-            <circle className="cs-arc" cx="256" cy="256" r="252" fill="none" stroke="#f0952f" strokeWidth="6" strokeLinecap="round" pathLength="100" />
-          </g>
+        <svg className="cs-ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle className="cs-track" cx="50" cy="50" r="47" fill="none" strokeWidth="2" />
+          <circle className="cs-arc" cx="50" cy="50" r="47" fill="none" stroke="#f0952f" strokeWidth="3" strokeLinecap="round" pathLength="100" />
         </svg>
-        <div className="cs-disc" />
-        <img className="cs-c" src={LOGO} alt="CipherSchools" />
-        <img className="cs-seg cs-seg-top" src={LOGO} alt="" aria-hidden="true" />
-        <img className="cs-seg cs-seg-bot" src={LOGO} alt="" aria-hidden="true" />
+        <img className="cs-logo" src={LOGO} alt="CSAS" />
       </div>
-      <div className="cs-status">
-        <div className="cs-rule"><div className="cs-rule-fill" /></div>
-        <div className="cs-msg" key={msg} data-ready={isReady ? 'true' : 'false'}>{MESSAGES[msg]}</div>
-      </div>
+      <div className="cs-msg" key={msg} data-ready={isReady ? 'true' : 'false'}>{MESSAGES[msg]}</div>
     </div>
   );
 }
